@@ -29,11 +29,16 @@ def parse_settings(lines):
         key, val = line.split(':', 1)
         key = key.strip()
         val = val.strip()
+
+        if not val:
+            result[key] = None
+            continue
+
         if val.lower() == 'true':
             result[key] = True
         elif val.lower() == 'false':
             result[key] = False
-        elif val.lower() == 'null' or not val:
+        elif val.lower() == 'null':
             result[key] = None
         elif val.startswith('[') and val.endswith(']'):
             try:
@@ -63,7 +68,7 @@ def merge_by_key(left, right, key="id"):
         items = [(r.get(key), r) for r in right if key in r]
     else:
         return result
-        
+
     for r_key, r_val in items:
         found = False
         for item in result:
