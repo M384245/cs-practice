@@ -1,7 +1,6 @@
 import csv
 import io
 import json
-import copy
 
 def csv_to_records(text):
     if not text.strip():
@@ -27,6 +26,7 @@ def csv_to_records(text):
 def parse_settings(lines):
     result = {}
     for line in lines:
+        # Отрезаем комментарии и пробелы
         line = line.split('#')[0].strip()
         if not line or ':' not in line:
             continue
@@ -39,22 +39,20 @@ def parse_settings(lines):
             result[key] = True
         elif val.lower() == 'false':
             result[key] = False
-        elif val.lower() == 'null' or not val:
+        elif val.lower() == 'null' or val == '':
             result[key] = None
         elif val.startswith('[') and val.endswith(']'):
-            # Обработка списков в квадратных скобках
             inner = val[1:-1].strip()
             if not inner:
                 result[key] = []
             else:
-                result[key] = [item.strip().strip('"\'') for item in inner.split(',')]
+                result[key] = [x.strip().strip('"\'') for x in inner.split(',')]
         elif ',' in val:
-            # Проверяем, является ли это числом с запятой (например, 3,5)
+            # Пытаемся понять, это число (3,5) или список (город, цена)
             try:
                 result[key] = float(val.replace(',', '.'))
             except ValueError:
-                # Если не число, значит это список строк (город, цена)
-                result[key] = [item.strip().strip('"\'') for item in val.split(',')]
+                result[key] = [x.strip().strip('"\'') for x in val.split(',')]
         else:
             try:
                 result[key] = int(val)
@@ -66,31 +64,22 @@ def parse_settings(lines):
     return result
 
 def merge_by_key(left, right, key="id"):
-    result = copy.deepcopy(left)
+    result = [dict(x) for x in left]
     
-    # Поддерживаем и словарь, и список на входе
-    if isinstance(right, dict):
-        items = right.items()
-    elif isinstance(right, list):
-        items = [(r.get(key), r) for r in right]
-    else:
-        return result
-        
-    for r_key, r_dict in items:
-        if r_key is None:
-            continue
+    for r_key, r_val in right.items():
         found = False
-        for rec in result:
-            if str(rec.get(key)) == str(r_key):
-                rec.update(r_dict)
+        for item in result:
+            # Сравниваем как строки, чтобы избежать проблем с типами
+            if str(item.get(key)) == str(r_key):
+                item.update(r_val)
                 found = True
                 break
         if not found:
-            new_rec = {key: r_key}
-            new_rec.update(r_dict)
-            result.append(new_rec)
+            new_item = {key: r_key}
+            new_item.update(r_val)
+            result.append(new_item)
+            
     return result
 
 def records_to_json(records):
-    # indent=2 и sort_keys=True обязательны для прохождения теста!
     return json.dumps(records, indent=2, ensure_ascii=False, sort_keys=True)
