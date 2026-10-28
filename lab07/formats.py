@@ -29,7 +29,6 @@ def parse_settings(lines):
         key, val = line.split(':', 1)
         key = key.strip()
         val = val.strip()
-
         if val.lower() == 'true':
             result[key] = True
         elif val.lower() == 'false':
@@ -58,7 +57,14 @@ def parse_settings(lines):
 
 def merge_by_key(left, right, key="id"):
     result = [dict(x) for x in left]
-    for r_key, r_val in right.items():
+    if isinstance(right, dict):
+        items = right.items()
+    elif isinstance(right, list):
+        items = [(r.get(key), r) for r in right if key in r]
+    else:
+        return result
+        
+    for r_key, r_val in items:
         found = False
         for item in result:
             if str(item.get(key)) == str(r_key):
