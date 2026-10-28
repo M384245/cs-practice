@@ -23,7 +23,7 @@ def main():
     error_count = counts.get("ERROR", 0)
     
     # "Разобрано всего" = все строки минус испорченные
-    total_parsed = total_lines - broken_count
+    total_parsed = sum(counts.values())
 
     print(total_parsed)
     print(error_count)
