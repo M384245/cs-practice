@@ -2,17 +2,21 @@ def parse_event(line):
     line = line.strip()
     if not line:
         raise ValueError("Empty line")
-    
+
     parts = line.split(maxsplit=2)
-    if len(parts) != 3:
+    if len(parts) < 2:
         raise ValueError("Not enough parts")
-    
-    time, level, message = parts
+
+    time = parts[0]
+    level = parts[1]
+    message = parts[2] if len(parts) == 3 else ""
+
     valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR"}
     if level not in valid_levels:
         raise ValueError("Invalid level")
-    
+
     return {"time": time, "level": level, "message": message}
+
 
 def count_levels(lines):
     counts = {}
