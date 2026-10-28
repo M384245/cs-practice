@@ -1,3 +1,4 @@
+# Lab 07 Final Working Version
 import csv
 import io
 import json
@@ -61,7 +62,9 @@ def parse_settings(lines):
     return result
 
 def merge_by_key(left, right, key="id"):
-    result = [dict(x) for x in left]
+    import copy
+    result = copy.deepcopy(left) # Глубокая копия для безопасности
+    
     if isinstance(right, dict):
         items = right.items()
     elif isinstance(right, list):
