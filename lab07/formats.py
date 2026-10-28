@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import copy
 
 def csv_to_records(text):
     if not text.strip():
@@ -10,7 +11,6 @@ def csv_to_records(text):
     reader = csv.reader(f)
     
     try:
-        # Очищаем заголовки от пробелов по краям
         headers = [h.strip() for h in next(reader)]
     except StopIteration:
         return []
@@ -19,9 +19,7 @@ def csv_to_records(text):
     for row in reader:
         if not row:
             continue
-        # Очищаем значения от пробелов
         row = [r.strip() for r in row]
-        # Собираем словарь
         record = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
         records.append(record)
     return records
@@ -29,7 +27,7 @@ def csv_to_records(text):
 def parse_settings(lines):
     result = {}
     for line in lines:
-        # Удаляем всё, что после решетки (комментарии), и пробелы
+        # Отрезаем комментарии и пробелы
         line = line.split('#')[0].strip()
         if not line or ':' not in line:
             continue
@@ -38,14 +36,15 @@ def parse_settings(lines):
         key = key.strip()
         val = val.strip()
         
-        # Проверяем, может быть, это готовый JSON-список (например, ["город", "цена"])
+        # 1. Списки в квадратных скобках
         if val.startswith('[') and val.endswith(']'):
-            try:
-                result[key] = json.loads(val)
-                continue
-            except Exception:
-                pass
-        
+            inner = val[1:-1].strip()
+            if not inner:
+                result[key] = []
+            else:
+                result[key] = [item.strip().strip('"\'') for item in inner.split(',')]
+            continue
+            
         lower_val = val.lower()
         if lower_val == 'true':
             result[key] = True
@@ -54,45 +53,52 @@ def parse_settings(lines):
         elif lower_val == 'null':
             result[key] = None
         else:
-            # Пытаемся распознать числа
+            # 2. Пробуем int
             try:
                 result[key] = int(val)
+                continue
             except ValueError:
-                try:
-                    # Если есть запятая и это число (например, "3,5")
-                    if ',' in val and val.replace(',', '').replace('-', '').replace('.', '').isdigit():
-                        result[key] = float(val.replace(',', '.'))
-                    else:
-                        raise ValueError
-                except ValueError:
-                    # Если не число, но есть запятые, значит это список строк
-                    if ',' in val:
-                        # Очищаем от возможных кавычек и делаем список
-                        items = [item.strip().strip('"\'') for item in val.split(',')]
-                        result[key] = items
-                    else:
-                        # Просто текст, убираем кавычки, если есть
-                        result[key] = val.strip('"\'')
+                pass
+                
+            # 3. Пробуем float (с точкой или запятой)
+            try:
+                clean_val = val.replace(',', '.').replace(' ', '')
+                result[key] = float(clean_val)
+                continue
+            except ValueError:
+                pass
+                
+            # 4. Если не число, но есть запятая (без скобок) — делаем список
+            if ',' in val:
+                result[key] = [item.strip().strip('"\'') for item in val.split(',')]
+            else:
+                result[key] = val.strip('"\'')
     return result
 
 def merge_by_key(left, right, key="id"):
-    # Делаем копию левого списка
-    result = [dict(rec) for rec in left]
-    left_indexes = {rec[key]: i for i, rec in enumerate(result) if key in rec}
+    # Делаем глубокую копию, чтобы не менять исходный список
+    result = copy.deepcopy(left)
     
-    # right — это словарь! Перебираем его через items()
+    # Собираем ключи, которые уже есть в левом списке
+    left_keys = {str(rec[key]) for rec in result if key in rec}
+    
+    # 1. Обновляем существующие элементы
+    for rec in result:
+        if key in rec:
+            r_key = str(rec[key])
+            if r_key in right:
+                rec.update(right[r_key])
+            elif rec[key] in right:
+                rec.update(right[rec[key]])
+                
+    # 2. Добавляем новые элементы из right, которых не было в left
     for r_key, r_dict in right.items():
-        if r_key in left_indexes:
-            # Если ключ есть в левом списке, обновляем словарь
-            idx = left_indexes[r_key]
-            result[idx].update(r_dict)
-        else:
-            # Если нет, добавляем как новый элемент, не забыв добавить сам ключ
-            new_dict = dict(r_dict)
-            new_dict[key] = r_key
+        if str(r_key) not in left_keys:
+            new_dict = {key: r_key}
+            new_dict.update(r_dict)
             result.append(new_dict)
+            
     return result
 
 def records_to_json(records):
-    # ОБЯЗАТЕЛЬНО: indent=2 (отступы) и sort_keys=True (сортировка ключей)
     return json.dumps(records, indent=2, ensure_ascii=False, sort_keys=True)
