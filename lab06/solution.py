@@ -27,10 +27,10 @@ def deepest_path(paths):
 
 def human_size(n_bytes):
     if n_bytes < 1024:
-        return f"{n_bytes} B"
+        return f"{n_bytes} Б"
     elif n_bytes < 1024**2:
-        return f"{n_bytes / 1024:.1f} KB"
+        return f"{n_bytes / 1024:.1f} КБ"
     elif n_bytes < 1024**3:
-        return f"{n_bytes / (1024**2):.1f} MB"
+        return f"{n_bytes / (1024**2):.1f} МБ"
     else:
-        return f"{n_bytes / (1024**3):.1f} GB"
+        return f"{n_bytes / (1024**3):.1f} ГБ"
