@@ -27,7 +27,7 @@ def csv_to_records(text):
 def parse_settings(lines):
     result = {}
     for line in lines:
-        # Отрезаем комментарии и пробелы
+        # Отрезаем комментарии
         line = line.split('#')[0].strip()
         if not line or ':' not in line:
             continue
@@ -36,68 +36,55 @@ def parse_settings(lines):
         key = key.strip()
         val = val.strip()
         
-        # 1. Списки в квадратных скобках
-        if val.startswith('[') and val.endswith(']'):
-            inner = val[1:-1].strip()
-            if not inner:
-                result[key] = []
-            else:
-                result[key] = [item.strip().strip('"\'') for item in inner.split(',')]
-            continue
-            
-        lower_val = val.lower()
-        if lower_val == 'true':
+        if val.lower() == 'true':
             result[key] = True
-        elif lower_val == 'false':
+        elif val.lower() == 'false':
             result[key] = False
-        elif lower_val == 'null':
+        elif val.lower() == 'null' or not val:
             result[key] = None
+        elif val.startswith('[') and val.endswith(']'):
+            try:
+                result[key] = json.loads(val)
+            except:
+                result[key] = val
+        elif ',' in val:
+            # Проверяем, является ли это числом с запятой (например, 3,5)
+            parts = [p.strip() for p in val.split(',')]
+            is_float = True
+            for p in parts:
+                if not p.replace('.', '', 1).replace('-', '', 1).isdigit():
+                    is_float = False
+                    break
+            if is_float:
+                result[key] = float(val.replace(',', '.'))
+            else:
+                # Если не число, значит это список строк
+                result[key] = [p.strip('"\'') for p in parts]
         else:
-            # 2. Пробуем int
             try:
                 result[key] = int(val)
-                continue
             except ValueError:
-                pass
-                
-            # 3. Пробуем float (с точкой или запятой)
-            try:
-                clean_val = val.replace(',', '.').replace(' ', '')
-                result[key] = float(clean_val)
-                continue
-            except ValueError:
-                pass
-                
-            # 4. Если не число, но есть запятая (без скобок) — делаем список
-            if ',' in val:
-                result[key] = [item.strip().strip('"\'') for item in val.split(',')]
-            else:
-                result[key] = val.strip('"\'')
+                try:
+                    result[key] = float(val)
+                except ValueError:
+                    result[key] = val.strip('"\'')
     return result
 
 def merge_by_key(left, right, key="id"):
-    # Делаем глубокую копию, чтобы не менять исходный список
     result = copy.deepcopy(left)
+    # Словарь для быстрого поиска существующих элементов
+    left_dict = {str(rec[key]): rec for rec in result if key in rec}
     
-    # Собираем ключи, которые уже есть в левом списке
-    left_keys = {str(rec[key]) for rec in result if key in rec}
-    
-    # 1. Обновляем существующие элементы
-    for rec in result:
-        if key in rec:
-            r_key = str(rec[key])
-            if r_key in right:
-                rec.update(right[r_key])
-            elif rec[key] in right:
-                rec.update(right[rec[key]])
-                
-    # 2. Добавляем новые элементы из right, которых не было в left
     for r_key, r_dict in right.items():
-        if str(r_key) not in left_keys:
-            new_dict = {key: r_key}
-            new_dict.update(r_dict)
-            result.append(new_dict)
-            
+        r_key_str = str(r_key)
+        if r_key_str in left_dict:
+            # Если есть, обновляем
+            left_dict[r_key_str].update(r_dict)
+        else:
+            # Если нет, создаем новый и добавляем
+            new_rec = {key: r_key}
+            new_rec.update(r_dict)
+            result.append(new_rec)
     return result
 
 def records_to_json(records):
